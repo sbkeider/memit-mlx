@@ -30,14 +30,16 @@ Traditional fine-tuning is expensive and prone to catastrophic forgetting. MEMIT
 
 ## Benchmark Results
 
-Tested on GPT-2 (124M) with 4 fact edits on Apple M4 Pro:
+Tested with 4 fact edits on Apple M4 Pro:
 
-| Metric | Score |
-|--------|-------|
-| Exact prompts | 4/4 (100%) |
-| Generalization | 9/12 (75%) |
+| Model | Parameters | Exact | Generalization | Edit Time |
+|-------|------------|-------|----------------|-----------|
+| GPT-2 Small | 124M | 4/4 (100%) | 9/12 (75%) | ~0.5s |
+| GPT-2 Medium | 345M | 3/4 (75%) | 6/12 (50%) | ~1.0s |
 
-### Example Edits
+> **Note:** Larger models require more tuning (layer selection, scale factors). These results use default configs. Better results possible with model-specific optimization.
+
+### Example Edits (GPT-2 Small)
 
 | Prompt | Target | After Edit |
 |--------|--------|------------|
@@ -98,12 +100,16 @@ editor.restore()  # Undo all edits
 ### Custom Configuration
 
 ```python
+# GPT-2 Small (default)
 editor = MEMIT(model, tokenizer, config={
-    "target_layers": [4, 5, 6, 7],  # Which layers to edit
-    "scale": 6.0,                    # Embedding scale factor
-    "lambda_reg": 0.15,              # Regularization strength
-    "blur_weight": 0.7,              # Paraphrase blending (0.7 original + 0.3 avg)
-    "blur_iterations": 2,            # Blur passes
+    "target_layers": [4, 5, 6, 7],  # Middle layers
+    "scale": 6.0,
+})
+
+# GPT-2 Medium (needs adjustment)
+editor = MEMIT(model, tokenizer, config={
+    "target_layers": [3, 4, 5, 6, 7],  # Earlier layers
+    "scale": 8.0,
 })
 ```
 
@@ -126,6 +132,7 @@ This anchors the edit to the original prompt while spreading it across semantic 
 
 - **GPT-2 only** (for now) — Llama/Qwen adapters coming in v0.2
 - **Simplified algorithm** — Uses direct embedding scaling instead of full v-optimization
+- **Larger models need tuning** — Default config optimized for GPT-2 Small
 - **Single-token targets work best** — Multi-token targets may have lower generalization
 
 ## Roadmap
