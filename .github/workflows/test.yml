@@ -30,4 +30,4 @@ jobs:
 
     - name: Run basic test
       run: |
-        python examples/edit_facts.py
+        PYTHONPATH=. python examples/edit_facts.py
