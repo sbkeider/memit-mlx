@@ -50,7 +50,7 @@ def run_test(model, tokenizer, use_v_opt, config=None):
     # Test exact
     exact = 0
     for fact in FACTS:
-        hit, resp = check_fact(model, tokenizer, fact["prompt"], fact["keyword"])
+        hit, resp = check_fact(model, tokenizer, fact['prompt'], fact['keyword'])
         if hit:
             exact += 1
     
@@ -58,8 +58,8 @@ def run_test(model, tokenizer, use_v_opt, config=None):
     gen = 0
     gen_total = 0
     for fact in FACTS:
-        for para in fact["paraphrases"]:
-            hit, resp = check_fact(model, tokenizer, para, fact["keyword"])
+        for para in fact['paraphrases']:
+            hit, resp = check_fact(model, tokenizer, para, fact['keyword'])
             if hit:
                 gen += 1
             gen_total += 1
