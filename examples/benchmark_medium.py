@@ -57,7 +57,7 @@ FACTS = [
 
 # GPT-2 Medium config (different optimal layers)
 MEDIUM_CONFIG = {
-    "target_layers": [3, 4, 5, 6, 7],  # Early-middle for Medium
+    "target_layers": [4, 5, 6, 7],  # Early-middle for Medium
     "scale": 8.0,  # Higher scale for larger model
 }
 
@@ -81,9 +81,9 @@ def main():
     print("BASELINE (before editing)")
     print("=" * 50)
     for fact in FACTS:
-        hit, response = check_fact(model, tokenizer, fact["prompt"], fact["keyword"])
+        hit, response = check_fact(model, tokenizer, fact['prompt'], fact['keyword'])
         status = "✅" if hit else "❌"
-        print(f"  {status} {fact["prompt"]} → {response[:50]}")
+        print(f"  {status} {fact['prompt']} → {response[:50]}")
     
     # Apply MEMIT edits
     print("\n" + "=" * 50)
@@ -100,9 +100,9 @@ def main():
     print("=" * 50)
     exact_hits = 0
     for fact in FACTS:
-        hit, response = check_fact(model, tokenizer, fact["prompt"], fact["keyword"])
+        hit, response = check_fact(model, tokenizer, fact['prompt'], fact['keyword'])
         status = "✅" if hit else "❌"
-        print(f"  {status} {fact["prompt"]} → {response[:50]}")
+        print(f"  {status} {fact['prompt']} → {response[:50]}")
         if hit:
             exact_hits += 1
     
@@ -113,8 +113,8 @@ def main():
     gen_hits = 0
     gen_total = 0
     for fact in FACTS:
-        for para in fact["paraphrases"]:
-            hit, response = check_fact(model, tokenizer, para, fact["keyword"])
+        for para in fact['paraphrases']:
+            hit, response = check_fact(model, tokenizer, para, fact['keyword'])
             status = "✅" if hit else "❌"
             print(f"  {status} {para[:40]:<40} → {response[:30]}")
             gen_total += 1
