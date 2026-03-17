@@ -21,13 +21,13 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install mlx mlx-lm transformers
+        pip install mlx mlx-lm
 
-    - name: Run benchmark (GPT-2 Small)
+    - name: Verify imports
       run: |
-        cd examples
-        PYTHONPATH=.. python edit_facts.py
+        python -c "from memit import MEMIT, check_fact; print('✅ Imports OK')"
+        python -c "from model_adapter import get_adapter, GPT2Adapter, LlamaAdapter, Qwen35Adapter; print('✅ Adapters OK')"
 
-    - name: Verify outputs
+    - name: Run basic test
       run: |
-        echo "✅ MEMIT-MLX tests passed"
+        python examples/edit_facts.py

@@ -26,7 +26,7 @@ from mlx_lm import load, generate
 from memit import MEMIT
 
 # Load any supported model
-model, tok = load("mlx-community/gpt2")
+model, tok = load("mlx-community/gpt2-base-mlx")
 
 # Create editor (auto-detects model architecture)
 memit = MEMIT(model, tok)

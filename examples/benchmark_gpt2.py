@@ -11,7 +11,7 @@ from mlx_lm import load, generate
 from memit import MEMIT, check_fact
 import time
 
-MODEL = "mlx-community/gpt2"
+MODEL = "mlx-community/gpt2-base-mlx"  # GPT-2 124M
 print(f"Loading {MODEL}...")
 model, tok = load(MODEL)
 

@@ -8,7 +8,7 @@ from mlx_lm import load, generate
 from memit import MEMIT
 
 # Load any supported model
-MODEL = "mlx-community/gpt2"  # or "mlx-community/Qwen3.5-0.8B-MLX-bf16"
+MODEL = "mlx-community/gpt2-base-mlx"  # GPT-2 124M
 print(f"Loading {MODEL}...")
 model, tok = load(MODEL)
 
@@ -44,3 +44,5 @@ memit.restore()
 for fact in facts:
     response = generate(model, tok, fact["prompt"], max_tokens=10, verbose=False)
     print(f"{fact['prompt']} -> {response.strip()}")
+
+print("\n✅ MEMIT test completed successfully")
