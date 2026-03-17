@@ -85,6 +85,24 @@ class MEMIT:
         print(f"MEMIT initialized: {type(self.adapter).__name__}, "
               f"{self.adapter.num_layers} layers, editing {self.target_layers}")
     
+    def _enable_gradient_mode(self):
+        """
+        Enable training mode on layers that use custom kernels without VJP.
+        This switches them to use pure ops that support gradients.
+        """
+        for i in range(self.adapter.num_layers):
+            layer = self.adapter.get_layer(i)
+            # Qwen3.5 linear attention uses custom Metal kernel in eval mode
+            if hasattr(layer, "linear_attn"):
+                layer.linear_attn.train()
+    
+    def _disable_gradient_mode(self):
+        """Restore eval mode on layers (faster inference)."""
+        for i in range(self.adapter.num_layers):
+            layer = self.adapter.get_layer(i)
+            if hasattr(layer, "linear_attn"):
+                layer.linear_attn.eval()
+    
     def _get_logits_at_position(self, tokens: mx.array, position: int) -> mx.array:
         """Get model logits at a specific position."""
         # Full forward pass through model
@@ -200,9 +218,9 @@ class MEMIT:
                 mx.eval(delta)
         except ValueError as e:
             if "CustomKernel" in str(e) or "vjp" in str(e).lower():
-                # Model uses custom kernels without gradient support
-                # Fall back to simplified approach
-                print(f"    (gradient not supported, using simplified)")
+                # This shouldn't happen if _enable_gradient_mode() worked
+                # Fall back to simplified approach as safety net
+                print(f"    (unexpected: gradient still not supported, using simplified)")
                 return self._get_target_value(target_token_id)
             raise
         
@@ -305,6 +323,10 @@ class MEMIT:
         if verbose:
             print(f"Editing {len(facts)} facts ({len(all_pairs)} token pairs) using {method}")
         
+        # Enable gradient mode for v-opt (switches custom kernels to pure ops)
+        if method == "v-opt":
+            self._enable_gradient_mode()
+        
         blur_weight = self.config["blur_weight"]
         blur_iterations = self.config["blur_iterations"]
         lambda_reg = self.config["lambda_reg"]
@@ -355,6 +377,10 @@ class MEMIT:
             
             if verbose:
                 print(f"  Layer {layer_idx}: updated")
+        
+        # Restore eval mode for faster inference
+        if method == "v-opt":
+            self._disable_gradient_mode()
     
     def restore(self):
         """Restore original weights (undo all edits)."""
