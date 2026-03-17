@@ -7,6 +7,7 @@ Abstracts model architecture differences so MEMIT works across model families.
 Supported:
 - GPT-2 family (gpt2, gpt2-medium, gpt2-large, gpt2-xl)
 - Llama family (llama, qwen, smollm, mistral)
+- Qwen3.5 family (qwen3.5-0.8b, qwen3.5-2b, etc.)
 """
 
 import mlx.core as mx
@@ -20,10 +21,15 @@ def detect_model_type(model) -> str:
     # Check for GPT-2 style (has model.h)
     if hasattr(model, "model") and hasattr(model.model, "h"):
         return "gpt2"
-    # Check for Llama style (has model.layers)
+    # Check for Qwen3.5 VLM style (has language_model.model.layers)
+    if hasattr(model, "language_model") and hasattr(model.language_model, "model"):
+        lm = model.language_model.model
+        if hasattr(lm, "layers") and hasattr(lm, "embed_tokens"):
+            return "qwen35"
+    # Check for Llama style (has model.model.layers)
     if hasattr(model, "model") and hasattr(model.model, "layers"):
         return "llama"
-    raise ValueError("Unknown model architecture. Supported: gpt2, llama/qwen")
+    raise ValueError("Unknown model architecture. Supported: gpt2, llama/qwen, qwen3.5")
 
 
 class ModelAdapter(ABC):
@@ -249,6 +255,89 @@ class LlamaAdapter(ModelAdapter):
         return 30.0  # Llama/Qwen need higher scale due to normalized embeddings
 
 
+class Qwen35Adapter(ModelAdapter):
+    """Adapter for Qwen3.5 VLM models (language_model.model.layers structure)."""
+    
+    def __init__(self, model, tokenizer):
+        super().__init__(model, tokenizer)
+        # Qwen3.5 VLM wraps the text model in language_model.model
+        self._lm = model.language_model.model
+    
+    @property
+    def num_layers(self) -> int:
+        return len(self._lm.layers)
+    
+    @property
+    def hidden_size(self) -> int:
+        return self._lm.embed_tokens.weight.shape[1]
+    
+    @property
+    def vocab_size(self) -> int:
+        return self._lm.embed_tokens.weight.shape[0]
+    
+    def get_layer(self, idx: int):
+        return self._lm.layers[idx]
+    
+    def get_mlp_proj_weight(self, layer_idx: int) -> mx.array:
+        return self._lm.layers[layer_idx].mlp.down_proj.weight
+    
+    def set_mlp_proj_weight(self, layer_idx: int, weight: mx.array):
+        self._lm.layers[layer_idx].mlp.down_proj.weight = weight
+    
+    def get_mlp_input(self, hidden_state: mx.array, layer_idx: int) -> mx.array:
+        """Get MLP input: silu(gate_proj(x)) * up_proj(x)"""
+        block = self.get_layer(layer_idx)
+        x = block.post_attention_layernorm(hidden_state)
+        gate = nn.silu(block.mlp.gate_proj(x))
+        up = block.mlp.up_proj(x)
+        return gate * up
+    
+    def get_embedding(self, token_ids: mx.array) -> mx.array:
+        return self._lm.embed_tokens(token_ids)
+    
+    def _forward_layer(self, x: mx.array, layer) -> mx.array:
+        """Forward through one layer, handling both linear and full attention."""
+        residual = x
+        x = layer.input_layernorm(x)
+        
+        # Qwen3.5 has mixed attention: linear_attn or self_attn
+        if hasattr(layer, "linear_attn"):
+            # Linear attention (GatedDeltaNet)
+            x = layer.linear_attn(x, cache=None)[0]
+        else:
+            # Full attention
+            x = layer.self_attn(x, mask=None, cache=None)[0]
+        
+        x = residual + x
+        
+        # MLP
+        residual = x
+        x = layer.post_attention_layernorm(x)
+        x = residual + layer.mlp(x)
+        
+        return x
+    
+    def forward_to_layer(self, tokens: mx.array, target_layer: int) -> mx.array:
+        x = self._lm.embed_tokens(tokens)
+        
+        for i in range(target_layer):
+            x = self._forward_layer(x, self._lm.layers[i])
+        
+        return x
+    
+    def forward_from_layer(self, hidden: mx.array, start_layer: int) -> mx.array:
+        x = hidden
+        for i in range(start_layer, self.num_layers):
+            x = self._forward_layer(x, self._lm.layers[i])
+        
+        x = self._lm.norm(x)
+        logits = x @ self._lm.embed_tokens.weight.T
+        return logits
+    
+    def default_scale(self) -> float:
+        return 75.0  # Qwen3.5 needs high scale like other Llama-style models
+
+
 def get_adapter(model, tokenizer) -> ModelAdapter:
     """Factory function to get the appropriate adapter for a model."""
     model_type = detect_model_type(model)
@@ -257,5 +346,7 @@ def get_adapter(model, tokenizer) -> ModelAdapter:
         return GPT2Adapter(model, tokenizer)
     elif model_type == "llama":
         return LlamaAdapter(model, tokenizer)
+    elif model_type == "qwen35":
+        return Qwen35Adapter(model, tokenizer)
     else:
         raise ValueError(f"Unknown model type: {model_type}")
