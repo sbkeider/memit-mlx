@@ -57,7 +57,7 @@ FACTS = [
 
 # GPT-2 Medium config (different optimal layers)
 MEDIUM_CONFIG = {
-    "target_layers": [3, 4, 5, 6, 7],  # Early-middle for Medium
+    "target_layers": [4, 5, 6, 7],  # Early-middle for Medium
     "scale": 8.0,  # Higher scale for larger model
 }
 

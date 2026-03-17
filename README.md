@@ -35,7 +35,7 @@ Tested with 4 fact edits on Apple M4 Pro:
 | Model | Parameters | Exact | Generalization | Edit Time |
 |-------|------------|-------|----------------|-----------|
 | GPT-2 Small | 124M | 4/4 (100%) | 9/12 (75%) | ~0.5s |
-| GPT-2 Medium | 345M | 3/4 (75%) | 6/12 (50%) | ~1.0s |
+| GPT-2 Medium | 345M | 3/4 (75%) | 7/12 (58%) | ~0.8s |
 
 > **Note:** Larger models require more tuning (layer selection, scale factors). These results use default configs. Better results possible with model-specific optimization.
 
@@ -108,7 +108,7 @@ editor = MEMIT(model, tokenizer, config={
 
 # GPT-2 Medium (needs adjustment)
 editor = MEMIT(model, tokenizer, config={
-    "target_layers": [3, 4, 5, 6, 7],  # Earlier layers
+    "target_layers": [4, 5, 6, 7],  # Same as Small, higher scale
     "scale": 8.0,
 })
 ```
