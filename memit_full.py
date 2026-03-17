@@ -17,9 +17,9 @@ from mlx_lm import load, generate
 from typing import List, Dict, Optional
 
 # V-Optimization hyperparameters (from official MEMIT)
-V_LR = 0.5              # Learning rate for v optimization
-V_NUM_STEPS = 20        # Gradient descent steps
-V_WEIGHT_DECAY = 0.5    # Regularization toward original embedding
+V_LR = 0.1              # Learning rate for v optimization
+V_NUM_STEPS = 50        # Gradient descent steps
+V_WEIGHT_DECAY = 0.1    # Regularization toward original embedding
 
 DEFAULT_CONFIG = {
     "target_layers": [4, 5, 6, 7],
@@ -158,8 +158,21 @@ class MEMITFull:
         v_num_steps = self.config["v_num_steps"]
         
         def loss_fn(v_param):
-            # Inject v at target position
-            h_modified = h.at[0, pos_idx, :].add(v_param)
+            # Inject v at target position by creating modified hidden state
+            # Create a delta tensor that is zeros except at the target position
+            delta = mx.zeros_like(h)
+            # We need to add v_param at position [0, pos_idx, :]
+            # Since MLX doesnt support easy in-place updates, reconstruct
+            h_modified = h + mx.zeros_like(h)
+            # Manual injection: create mask and add
+            h_slice = h[0:1, pos_idx:pos_idx+1, :]  # (1, 1, hidden)
+            v_expanded = v_param.reshape(1, 1, -1)  # (1, 1, hidden)
+            
+            # Reconstruct h_modified with v added at target position
+            h_before = h[:, :pos_idx, :]  # (1, pos_idx, hidden)
+            h_target = h[:, pos_idx:pos_idx+1, :] + v_expanded  # (1, 1, hidden)
+            h_after = h[:, pos_idx+1:, :]  # (1, remaining, hidden)
+            h_modified = mx.concatenate([h_before, h_target, h_after], axis=1)
             
             # Forward to get logits
             logits = self._forward_from_layer(h_modified, layer_idx)
@@ -230,7 +243,7 @@ class MEMITFull:
                 else:
                     # Simplified: direct embedding scaling
                     target_embed = self.model.model.wte.weight[pair["token_id"]]
-                    v = 6.0 * target_embed  # Default scale
+                    v = self.config.get("scale", 8.0) * target_embed
                 
                 keys.append(k)
                 values.append(v)
