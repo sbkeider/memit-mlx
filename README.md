@@ -9,6 +9,7 @@ Edit factual associations in language models without fine-tuning.
 - **Model-agnostic**: Works with GPT-2, Llama, Qwen3, Qwen3.5, Mistral, SmolLM
 - **Fast**: Sub-second edits on M-series chips
 - **Simple API**: Auto-detects architecture, sensible defaults
+- **V-optimization**: Gradient-based refinement for higher quality edits
 - **Reversible**: Restore original weights anytime
 
 ## Installation
@@ -45,13 +46,33 @@ print(generate(model, tok, "The Eiffel Tower is located in", max_tokens=10))
 memit.restore()
 ```
 
+## V-Optimization (New in v0.4)
+
+For higher quality edits, especially with multiple facts, use v-optimization:
+
+```python
+# Gradient-based optimization for better generalization
+memit.edit(edits, method="v-opt")
+```
+
+V-optimization uses gradient descent to find optimal edit vectors, trading speed for quality:
+
+| Method | Speed | Quality | Best For |
+|--------|-------|---------|----------|
+| simplified | ~0.4s | Good | Single edits, speed-critical |
+| v-opt | ~25s | Better | Multi-edit, accuracy-critical |
+
+**Note:** V-optimization on Qwen3.5 models automatically enables gradient mode for the GatedDeltaNet attention layers.
+
 ## Benchmark Results
 
-| Model | Params | Exact | Generalization | Edit Time | Config |
-|-------|--------|-------|----------------|-----------|--------|
-| GPT-2 Small | 124M | 100% | 75% | 0.8s | layers=[4,5,6,7], scale=8 |
-| Qwen3-1.7B | 1.7B | 100% | 75% | 2.0s | layers=[6,7,8,9], scale=110 |
-| Qwen3.5-0.8B | 0.8B | 100% | 75% | 0.4s | layers=[4,5,6], scale=12 |
+| Model | Params | Method | Exact | Generalization | Time |
+|-------|--------|--------|-------|----------------|------|
+| GPT-2 Small | 124M | simplified | 100% | 75% | 0.8s |
+| GPT-2 Medium | 355M | simplified | 75% | 58% | 1.2s |
+| GPT-2 Medium | 355M | v-opt | 100% | 75% | 68s |
+| Qwen3.5-0.8B | 0.8B | simplified | 100% | 75% | 0.4s |
+| Qwen3.5-0.8B | 0.8B | v-opt | 100% | 75% | 25s |
 
 Run benchmarks yourself:
 ```bash
@@ -111,18 +132,32 @@ Where:
 - `V` = Target token embeddings × scale (values)
 - `λ` = Regularization to prevent drift
 
+### V-Optimization
+
+The simplified method uses `V = scale × embedding`. V-optimization instead finds `V` via gradient descent:
+
+```
+V = target_init + optimized_delta
+```
+
+The optimization minimizes: NLL loss + KL divergence + L2 regularization
+
+This produces more precise edits that generalize better across prompt variations.
+
 ## Limitations
 
-- **Multi-edit interference**: Editing many facts (>4) simultaneously can degrade quality
+- **Multi-edit interference**: Editing many facts (>4) simultaneously can degrade quality (use v-opt for better results)
 - **Small model artifacts**: Very small models may repeat edited tokens
-- **No persistence**: Edits are in-memory only (save/load coming in v0.4)
+- **No persistence**: Edits are in-memory only (save/load coming soon)
 
 ## Roadmap
 
+- [x] v0.1: GPT-2 support
+- [x] v0.2: Full MEMIT with v-optimization
 - [x] v0.3: Model-agnostic architecture (GPT-2, Llama, Qwen3.5)
-- [ ] v0.4: V-optimization for better multi-edit quality
-- [ ] v0.4: C matrix support for knowledge preservation
-- [ ] v0.4: Save/load edited models
+- [x] v0.4: V-optimization on Qwen3.5 (GatedDeltaNet gradient mode)
+- [ ] v0.5: C matrix support for knowledge preservation
+- [ ] v0.5: Save/load edited models
 
 ## References
 
