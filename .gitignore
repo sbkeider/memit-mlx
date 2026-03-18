@@ -24,3 +24,4 @@ venv/
 ENV/
 .DS_Store
 *.log
+c_matrices/

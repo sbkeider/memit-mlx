@@ -17,6 +17,8 @@ import mlx.core as mx
 import mlx.nn as nn
 from mlx_lm import load, generate
 from typing import List, Dict, Optional, Literal
+from pathlib import Path
+import json
 
 from model_adapter import get_adapter, ModelAdapter
 
@@ -84,6 +86,31 @@ class MEMIT:
         
         print(f"MEMIT initialized: {type(self.adapter).__name__}, "
               f"{self.adapter.num_layers} layers, editing {self.target_layers}")
+        
+        # C matrix cache
+        self._c_matrices = None
+    
+    def load_c_matrix(self, path: str):
+        """
+        Load precomputed C matrices for knowledge preservation.
+        
+        The C matrix captures corpus statistics and helps MEMIT make edits
+        that don't interfere with existing knowledge.
+        
+        Args:
+            path: Directory containing C matrix files from c_matrix.py
+        """
+        path = Path(path)
+        
+        with open(path / "metadata.json") as f:
+            metadata = json.load(f)
+        
+        self._c_matrices = {}
+        for layer_idx in metadata["target_layers"]:
+            if layer_idx in self.target_layers:
+                self._c_matrices[layer_idx] = mx.load(str(path / f"layer_{layer_idx}.npy"))
+        
+        print(f"Loaded C matrices for layers {list(self._c_matrices.keys())}")
     
     def _enable_gradient_mode(self):
         """
@@ -366,7 +393,12 @@ class MEMIT:
             R = V - (W0 @ K)
             
             KKT = K @ K.T
+            # Regularization: λI + scale*C (if C matrix loaded)
             reg = lambda_reg * mx.eye(K.shape[0])
+            if self._c_matrices and layer_idx in self._c_matrices:
+                # Add scaled C matrix (typical scale: 1000-10000 based on corpus size)
+                c_scale = self.config.get("c_matrix_scale", 5000.0)
+                reg = reg + c_scale * self._c_matrices[layer_idx]
             KKT_inv = mx.linalg.inv(KKT + reg, stream=mx.cpu)
             
             dW = (R @ K.T) @ KKT_inv
